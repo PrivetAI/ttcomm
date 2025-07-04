@@ -1,0 +1,37 @@
+# To connect to a local Chrome instance for debugging,
+# launch Chrome with the following flag:
+# google-chrome --remote-debugging-port=9222
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SKIP_CHROMIUM_DOWNLOAD=false
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - browser_data:/app/browser_data
+      - data:/app/data
+      - logs:/app/logs
+      - temp:/app/temp
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - HEADLESS_MODE=true
+      - DISPLAY=${DISPLAY}
+    restart: unless-stopped
+    shm_size: 2gb
+    init: true
+
+volumes:
+  browser_data:
+    driver: local
+  data:
+    driver: local
+  logs:
+    driver: local
+  temp:
+    driver: local
