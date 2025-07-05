@@ -1,39 +1,32 @@
-(function() {
-  const container = document.querySelector('[data-e2e="search_top-item-list"]') || 
-                   document.querySelector('#tabs-0-panel-search_top');
-  
-  if (!container) return [];
+(async () => {
+  // 1. Находим Action Bar и кнопку комментариев
+  const actionBar = document.querySelector('section.css-16g1ej4-SectionActionBarContainer');
+  if (!actionBar) {
+    console.warn('Action Bar не найден');
+    return;
+  }
+  const commentBtn = actionBar.querySelector('[data-e2e="comment-icon"]')?.closest('button');
+  if (!commentBtn) {
+    console.warn('Кнопка комментариев не найдена');
+    return;
+  }
 
-  const videos = [];
-  const videoItems = container.querySelectorAll('[data-e2e="search_top-item"]');
-  
-  videoItems.forEach((item, index) => {
-    try {
-      const videoLink = item.querySelector('a[href*="/video/"]');
-      const viewsEl = item.querySelector('[data-e2e="video-views"]');
-      const descContainer = item.parentElement.querySelector('[data-e2e="search-card-desc"]');
-      const captionEl = descContainer?.querySelector('[data-e2e="search-card-video-caption"]');
-      const hashtagLinks = captionEl?.querySelectorAll('[data-e2e="search-common-link"]') || [];
-      const hashtags = [...hashtagLinks].map(link => link.textContent.trim());
-      const textSpans = captionEl?.querySelectorAll('[data-e2e="new-desc-span"]') || [];
-      const description = [...textSpans].map(span => span.textContent.trim()).filter(text => text).join(' ');
-      const authorLink = descContainer?.querySelector('[data-e2e="search-card-user-link"]');
-      const authorId = descContainer?.querySelector('[data-e2e="search-card-user-unique-id"]');
-      
-      videos.push({
-        index: index + 1,
-        url: videoLink?.href || '',
-        views: viewsEl?.textContent?.trim() || '0',
-        description: description || '',
-        hashtags: hashtags || [],
-        author: authorId?.textContent?.trim() || '',
-        authorUrl: authorLink?.href || ''
-      });
-    } catch (error) {
-      console.warn(`Ошибка при парсинге видео ${index + 1}:`, error);
-    }
+  // 2. Кликаем по ней
+  commentBtn.click();
+
+  // 3. Ждём, чтобы панель комментариев успела подгрузиться
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  // 4. Теперь парсим комментарии
+  const commentBlocks = document.querySelectorAll('.css-1gstnae-DivCommentItemWrapper');
+  const comments = Array.from(commentBlocks).map(block => {
+    const username = block.querySelector('[data-e2e^="comment-username"] p')?.innerText.trim() || '';
+    const text = block.querySelector('[data-e2e^="comment-level"] p, span[data-e2e^="comment-level"]')?.innerText.trim() || '';
+    const time = block.querySelector('.css-1lglotn-DivCommentSubContentWrapper span')?.innerText.trim() || '';
+    const likes = block.querySelector('.css-1nd5cw-DivLikeContainer span')?.innerText.trim() || '0';
+    return { username, text, time, likes };
   });
-  
-  return videos;
-})();
 
+  console.log('Комментарии:', comments);
+  return comments;
+})();

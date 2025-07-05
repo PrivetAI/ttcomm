@@ -55,11 +55,28 @@ class Bot {
                 console.log(`\n📹 Video from @${video.author}`);
                 console.log(`   "${video.description?.substring(0, 50)}..."`);
                 
-                // Analyze
-                const analysis = await this.ai.analyzeVideo(video);
+                // Get video details
+                console.log('   📊 Getting video details...');
+                const videoDetails = await this.browser.getVideoDetails(video.url);
+                
+                if (videoDetails) {
+                    console.log(`   💙 ${videoDetails.counts.likes} | 💬 ${videoDetails.counts.comments} | 🔄 ${videoDetails.counts.shares}`);
+                }
+                
+                // Get comments for analysis
+                console.log('   💬 Loading comments...');
+                const comments = await this.browser.getComments(video.url, 50);
+                console.log(`   📝 Found ${comments.length} comments`);
+                
+                // Analyze video with comments context
+                console.log('   🤔 Analyzing relevance...');
+                const analysis = await this.ai.analyzeVideoWithComments(video, comments, videoDetails);
                 await db.updateVideoRelevance(videoId, analysis);
                 
-                console.log(`   Relevant: ${analysis.relevant ? 'YES' : 'NO'} (${(analysis.score * 100).toFixed(0)}%)`);
+                console.log(`   📈 Relevant: ${analysis.relevant ? 'YES' : 'NO'} (${(analysis.score * 100).toFixed(0)}%)`);
+                console.log(`   🎯 Category: ${analysis.category}`);
+                console.log(`   💭 Theme: ${analysis.commentContext.mainTheme}`);
+                console.log(`   😊 Sentiment: ${analysis.commentContext.sentiment}`);
                 
                 if (analysis.relevant && analysis.score >= minScore) {
                     // Check hourly limit
@@ -75,9 +92,17 @@ class Bot {
                         hourStart = Date.now();
                     }
                     
-                    // Generate comment
-                    const comment = await this.ai.generateComment(video, analysis);
-                    console.log(`💬 Comment: "${comment.comment}"`);
+                    // Generate contextual comment
+                    console.log('   ✍️  Generating contextual comment...');
+                    const comment = await this.ai.generateContextualComment(
+                        video, 
+                        analysis, 
+                        comments.slice(0, 10)
+                    );
+                    
+                    console.log(`   💬 Comment: "${comment.comment}"`);
+                    console.log(`   🎯 Approach: ${analysis.commentContext.suggestedApproach}`);
+                    console.log(`   🔍 Reasoning: ${comment.reasoning}`);
                     
                     // Post comment
                     const success = await this.browser.postComment(video.url, comment.comment);
@@ -86,18 +111,22 @@ class Bot {
                     if (success) {
                         this.stats.comments++;
                         hourlyComments++;
-                        console.log('✅ Posted successfully');
+                        console.log('   ✅ Posted successfully!');
                         await this.wait(commentDelay);
                     } else {
-                        console.log('❌ Failed to post');
+                        console.log('   ❌ Failed to post');
                     }
+                } else {
+                    console.log(`   ⏭️  Skipping - ${analysis.reason}`);
                 }
                 
                 // Update session stats
                 await db.updateSession(this.sessionId, this.stats);
                 
                 // Random delay between videos
-                await this.wait(this.random(3000, 8000));
+                const delay = this.random(5000, 12000);
+                console.log(`   ⏳ Waiting ${(delay/1000).toFixed(1)}s before next video...`);
+                await this.wait(delay);
             }
             
         } catch (error) {
@@ -119,6 +148,7 @@ class Bot {
         console.log('\n📊 Session Stats:');
         console.log(`   Videos analyzed: ${this.stats.videos}`);
         console.log(`   Comments posted: ${this.stats.comments}`);
+        console.log(`   Success rate: ${this.stats.videos > 0 ? (this.stats.comments/this.stats.videos*100).toFixed(1) : 0}%`);
     }
 
     wait(ms) {
@@ -141,7 +171,7 @@ if (require.main === module) {
     });
     
     const config = {
-        feedType: process.argv.includes('--hashtag') ? 'hashtag' : 'foryou',
+        feedType: process.argv.includes('--hashtag') ? 'hashtag' : '',
         hashtags: []
     };
     
@@ -153,4 +183,4 @@ if (require.main === module) {
     bot.start(config);
 }
 
-module.exports = Bot;   
+module.exports = Bot;
