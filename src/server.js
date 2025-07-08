@@ -19,7 +19,8 @@ app.get('/api/status', (req, res) => {
     res.json({
         running: bot && bot.isRunning,
         sessionId: bot?.sessionId,
-        stats: bot?.stats || { videos: 0, comments: 0 }
+        stats: bot?.stats || { videos: 0, comments: 0 },
+        captchaDetected: bot?.getCaptchaStatus() || false
     });
 });
 

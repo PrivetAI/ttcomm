@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok Bot</title>
+    <title>Social Media Bot</title>
     <style>
         body {
             font-family: monospace;
@@ -36,6 +36,28 @@
         .running { color: green; }
         .stopped { color: red; }
         
+        .captcha-banner {
+            display: none;
+            background: #ff6b6b;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        .captcha-banner.show {
+            display: block;
+        }
+        
+        body.captcha-active {
+            padding-top: 70px;
+        }
+        
         table {
             width: 100%;
             border-collapse: collapse;
@@ -50,6 +72,23 @@
         
         th {
             background: #f0f0f0;
+        }
+        
+        .platform-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .platform-tiktok {
+            background: #ff0050;
+            color: white;
+        }
+        
+        .platform-instagram {
+            background: #833AB4;
+            color: white;
         }
         
         .tab-buttons {
@@ -84,7 +123,11 @@
     </style>
 </head>
 <body>
-    <h1>TikTok Bot Control Panel</h1>
+    <div class="captcha-banner" id="captchaBanner">
+        ⚠️ CAPTCHA DETECTED - Please solve it manually in the browser window
+    </div>
+
+    <h1>Social Media Bot Control Panel</h1>
     
     <div class="card">
         <h2>Control</h2>
@@ -99,7 +142,7 @@
                     <option value="hashtag">Hashtag</option>
                 </select>
             </label>
-            <label>Hashtags:
+            <label>Hashtags (TikTok only):
                 <input type="text" id="hashtags" placeholder="work,job,career">
             </label>
         </div>
@@ -114,7 +157,9 @@
     <div class="card">
         <h2>Overall Stats</h2>
         <p>Total Sessions: <span id="totalSessions">-</span></p>
-        <p>Total Videos: <span id="totalVideos">-</span></p>
+        <p>Total Videos: <span id="totalVideos">-</span> 
+           (TikTok: <span id="tiktokVideos">-</span>, 
+            Instagram: <span id="instagramVideos">-</span>)</p>
         <p>Total Comments: <span id="totalComments">-</span></p>
     </div>
     
@@ -129,6 +174,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>Platform</th>
                         <th>Author</th>
                         <th>Description</th>
                         <th>Relevant</th>
@@ -136,7 +182,7 @@
                     </tr>
                 </thead>
                 <tbody id="videoList">
-                    <tr><td colspan="4">No data</td></tr>
+                    <tr><td colspan="5">No data</td></tr>
                 </tbody>
             </table>
         </div>
@@ -146,6 +192,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>Platform</th>
                         <th>Video</th>
                         <th>Comment</th>
                         <th>Status</th>
@@ -153,7 +200,7 @@
                     </tr>
                 </thead>
                 <tbody id="commentList">
-                    <tr><td colspan="4">No data</td></tr>
+                    <tr><td colspan="5">No data</td></tr>
                 </tbody>
             </table>
         </div>
@@ -185,12 +232,24 @@
                 document.getElementById('videoCount').textContent = status.stats.videos;
                 document.getElementById('commentCount').textContent = status.stats.comments;
                 
+                // Handle captcha banner
+                const captchaBanner = document.getElementById('captchaBanner');
+                if (status.captchaDetected) {
+                    captchaBanner.classList.add('show');
+                    document.body.classList.add('captcha-active');
+                } else {
+                    captchaBanner.classList.remove('show');
+                    document.body.classList.remove('captcha-active');
+                }
+                
                 document.getElementById('startBtn').disabled = status.running;
                 document.getElementById('stopBtn').disabled = !status.running;
                 
                 const stats = await api('stats');
                 document.getElementById('totalSessions').textContent = stats.total_sessions || 0;
                 document.getElementById('totalVideos').textContent = stats.total_videos || 0;
+                document.getElementById('tiktokVideos').textContent = stats.tiktok_videos || 0;
+                document.getElementById('instagramVideos').textContent = stats.instagram_videos || 0;
                 document.getElementById('totalComments').textContent = stats.total_comments || 0;
                 
                 if (currentTab === 'videos') {
@@ -226,17 +285,22 @@
             }
         }
         
+        function getPlatformBadge(platform) {
+            return `<span class="platform-badge platform-${platform}">${platform.toUpperCase()}</span>`;
+        }
+        
         async function loadVideos() {
             const videos = await api('videos');
             const tbody = document.getElementById('videoList');
             
             if (videos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4">No videos yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">No videos yet</td></tr>';
                 return;
             }
             
             tbody.innerHTML = videos.map(v => `
                 <tr>
+                    <td>${getPlatformBadge(v.platform || 'tiktok')}</td>
                     <td>@${v.author}</td>
                     <td>${(v.description || '').substring(0, 50)}...</td>
                     <td>${v.is_relevant ? 'Yes' : 'No'}</td>
@@ -250,12 +314,13 @@
             const tbody = document.getElementById('commentList');
             
             if (comments.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4">No comments yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">No comments yet</td></tr>';
                 return;
             }
             
             tbody.innerHTML = comments.map(c => `
                 <tr>
+                    <td>${getPlatformBadge(c.platform || 'tiktok')}</td>
                     <td>@${c.author}</td>
                     <td>${c.comment_text}</td>
                     <td>${c.success ? 'Posted' : 'Failed'}</td>

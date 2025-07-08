@@ -1,15 +1,16 @@
 require('dotenv').config();
-const TikTokBrowser = require('./browser');
+const BrowserManager = require('./browser');
 const AI = require('./ai');
 const db = require('./db');
 
 class Bot {
     constructor() {
-        this.browser = new TikTokBrowser();
+        this.browser = new BrowserManager();
         this.ai = new AI();
         this.isRunning = false;
         this.sessionId = null;
         this.stats = { videos: 0, comments: 0 };
+        this.currentPlatform = 'tiktok'; // Start with TikTok
     }
 
     async start(config = {}) {
@@ -17,14 +18,14 @@ class Bot {
             // Connect to Chrome
             await this.browser.connect();
             
-            // Check login
+            // Check login on both platforms
             const isLoggedIn = await this.browser.checkLogin();
             if (!isLoggedIn) {
-                console.log('❌ Please log in to TikTok in Chrome first!');
+                console.log('❌ Please log in to both TikTok and Instagram in Chrome first!');
                 return;
             }
             
-            console.log('✅ Logged in to TikTok');
+            console.log('✅ Logged in to both platforms');
             
             // Create session
             this.sessionId = await db.createSession();
@@ -38,26 +39,47 @@ class Bot {
             let hourlyComments = 0;
             let hourStart = Date.now();
             
-            // Process videos
-            for await (const video of this.browser.scrollFeed(config.feedType, config.hashtags)) {
-                if (!this.isRunning) break;
+            // Process videos alternating between platforms
+            while (this.isRunning) {
+                // Get one video from current platform
+                const videoIterator = this.browser.scrollPlatform(
+                    this.currentPlatform, 
+                    config.feedType, 
+                    config.hashtags
+                );
+                
+                const { value: video, done } = await videoIterator.next();
+                
+                if (done || !video) {
+                    console.log(`⏹️ No more videos from ${this.currentPlatform}`);
+                    break;
+                }
                 
                 // Skip if already processed
                 if (await db.isVideoProcessed(video.id)) {
                     console.log(`⏭️  Skipping processed video: ${video.id}`);
+                    // Switch platform and continue
+                    this.currentPlatform = this.currentPlatform === 'tiktok' ? 'instagram' : 'tiktok';
                     continue;
                 }
                 
-                // Save video
+                // Save video with platform
                 const videoId = await db.saveVideo(video);
                 this.stats.videos++;
                 
-                console.log(`\n📹 Video from @${video.author}`);
+                console.log(`\n📹 [${video.platform.toUpperCase()}] Video from @${video.author}`);
                 console.log(`   "${video.description?.substring(0, 50)}..."`);
+                
+                // Check for captcha
+                if (this.browser.getCaptchaStatus()) {
+                    console.log('⏸️ Waiting for captcha to be solved...');
+                    await this.wait(5000);
+                    continue;
+                }
                 
                 // Get video details
                 console.log('   📊 Getting video details...');
-                const videoDetails = await this.browser.getVideoDetails(video.url);
+                const videoDetails = await this.browser.getVideoDetails(video);
                 
                 if (videoDetails) {
                     console.log(`   💙 ${videoDetails.counts.likes} | 💬 ${videoDetails.counts.comments} | 🔄 ${videoDetails.counts.shares}`);
@@ -65,7 +87,7 @@ class Bot {
                 
                 // Get comments for analysis
                 console.log('   💬 Loading comments...');
-                const comments = await this.browser.getComments(video.url, 50);
+                const comments = await this.browser.getComments(video, 50);
                 console.log(`   📝 Found ${comments.length} comments`);
                 
                 // Analyze video with comments context
@@ -105,7 +127,7 @@ class Bot {
                     console.log(`   🔍 Reasoning: ${comment.reasoning}`);
                     
                     // Post comment
-                    const success = await this.browser.postComment(video.url, comment.comment);
+                    const success = await this.browser.postComment(video, comment.comment);
                     await db.saveComment(videoId, comment.comment, success);
                     
                     if (success) {
@@ -123,10 +145,12 @@ class Bot {
                 // Update session stats
                 await db.updateSession(this.sessionId, this.stats);
                 
-                // Random delay between videos
-                const delay = this.random(5000, 12000);
-                console.log(`   ⏳ Waiting ${(delay/1000).toFixed(1)}s before next video...`);
-                await this.wait(delay);
+                // Switch platform for next video
+                // this.currentPlatform = this.currentPlatform === 'tiktok' ? 'instagram' : 'tiktok';
+                // console.log(`   🔄 Switching to ${this.currentPlatform.toUpperCase()}`);
+                
+                // Small delay before next video (no long delay between platforms)
+                await this.wait(1000);
             }
             
         } catch (error) {
@@ -138,6 +162,9 @@ class Bot {
 
     async stop() {
         this.isRunning = false;
+        
+        // Stop scrolling on both platforms
+        await this.browser.stopScrolling();
         
         if (this.sessionId) {
             await db.endSession(this.sessionId, 'stopped');
@@ -155,8 +182,8 @@ class Bot {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    random(min, max) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
+    getCaptchaStatus() {
+        return this.browser.getCaptchaStatus();
     }
 }
 
