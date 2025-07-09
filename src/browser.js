@@ -1,44 +1,50 @@
-const puppeteer = require('puppeteer-core');
-const TikTokBrowser = require('./browsers/TikTokBrowser');
-const InstagramBrowser = require('./browsers/InstagramBrowser');
+const AutomationFactory = require('./automation/AutomationFactory');
 
+/**
+ * Browser Manager using pluggable automation strategies
+ */
 class BrowserManager {
     constructor() {
-        this.browser = null;
-        this.tiktokBrowser = new TikTokBrowser();
-        this.instagramBrowser = new InstagramBrowser();
+        this.strategy = null;
         this.isConnected = false;
+        this.captchaDetected = false;
+        this.currentPlatform = 'tiktok';
     }
 
-    async connect() {
+    /**
+     * Connect using specified automation strategy
+     * @param {string} strategyType - Type of automation (direct, mcp, llm)
+     * @param {Object} config - Strategy configuration
+     */
+    async connect(strategyType = 'direct', config = {}) {
         try {
-            console.log('🔌 Connecting to Chrome...');
+            console.log(`🔌 Initializing ${strategyType} automation...`);
             
-            // Connect to Chrome
-            if (process.env.CHROME_WS_ENDPOINT) {
-                this.browser = await puppeteer.connect({
-                    browserWSEndpoint: process.env.CHROME_WS_ENDPOINT,
-                    defaultViewport: null
-                });
-            } else if (process.env.CHROME_ENDPOINT) {
-                this.browser = await puppeteer.connect({
-                    browserURL: process.env.CHROME_ENDPOINT,
-                    defaultViewport: null
-                });
-            } else {
-                throw new Error('No Chrome endpoint configured in .env');
-            }
+            // Create strategy
+            this.strategy = AutomationFactory.create(strategyType, config);
             
-            // Set up TikTok tab
-            const pages = await this.browser.pages();
-            const tiktokPage = pages[0] || await this.browser.newPage();
-            await this.tiktokBrowser.setupPage(tiktokPage);
+            // Initialize
+            await this.strategy.initialize();
             
-            // Create Instagram tab
-            const instagramPage = await this.browser.newPage();
-            await this.instagramBrowser.setupPage(instagramPage);
+            this.isConnected = true;
+            return true;
+        } catch (error) {
+            console.error('❌ Connection failed:', error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Auto-select best available strategy and connect
+     */
+    async connectBest(config = {}) {
+        try {
+            console.log('🔌 Auto-selecting best automation strategy...');
             
-            console.log('✅ Connected to Chrome with 2 tabs');
+            this.strategy = await AutomationFactory.createBestAvailable(config);
+            await this.strategy.initialize();
+            
+            console.log(`✅ Connected using ${this.strategy.getName()}`);
             this.isConnected = true;
             return true;
         } catch (error) {
@@ -48,79 +54,145 @@ class BrowserManager {
     }
 
     async checkLogin() {
-        if (!this.isConnected) {
-            await this.connect();
+        if (!this.isConnected || !this.strategy) {
+            throw new Error('Not connected');
         }
         
-        // Check TikTok login
         console.log('🌐 Checking TikTok login...');
-        await this.tiktokBrowser.page.bringToFront();
-        await this.tiktokBrowser.navigate();
-        const tiktokLoggedIn = await this.tiktokBrowser.checkLogin();
-        console.log(tiktokLoggedIn ? '✅ TikTok logged in' : '⚠️ TikTok not logged in');
+        await this.strategy.navigate('https://www.tiktok.com');
+        const loggedIn = await this.strategy.checkLogin();
+        console.log(loggedIn ? '✅ TikTok logged in' : '⚠️ TikTok not logged in');
         
-        // // Check Instagram login
-        // console.log('🌐 Checking Instagram login...');
-        // await this.instagramBrowser.page.bringToFront();
-        // await this.instagramBrowser.navigate();
-        // const instagramLoggedIn = await this.instagramBrowser.checkLogin();
-        // console.log(instagramLoggedIn ? '✅ Instagram logged in' : '⚠️ Instagram not logged in');
-        
-        // return tiktokLoggedIn && instagramLoggedIn;
-        return tiktokLoggedIn
-
+        return loggedIn;
     }
 
-    async *scrollPlatform(platform, feedType = '', hashtags = []) {
-        const browser = platform === 'instagram' ? this.instagramBrowser : this.tiktokBrowser;
-        
-        // Switch to correct tab
-        await browser.page.bringToFront();
-        
-        // Navigate if needed (for hashtags on TikTok)
-        if (platform === 'tiktok' && feedType === 'hashtag' && hashtags.length > 0) {
-            await browser.navigate(feedType, hashtags);
+    async *scrollSearch(searchQuery) {
+        if (!this.strategy) {
+            throw new Error('No automation strategy initialized');
         }
         
-        // Yield videos from the scroll generator
-        yield* browser.scroll();
+        // Navigate to search
+        await this.strategy.searchTikTok(searchQuery);
+        
+        // Add initial delay
+        await this.wait(this.randomDelay(2000, 5000));
+        
+        // Yield videos from scroll
+        yield* this.scroll();
+    }
+
+    async *scroll() {
+        let processed = new Set();
+        let attempts = 0;
+        let noNewVideosCount = 0;
+        
+        try {
+            while (attempts < 100 && noNewVideosCount < 5) {
+                attempts++;
+                
+                // Check for captcha
+                if (await this.strategy.checkForCaptcha()) {
+                    console.log('⏸️ CAPTCHA detected - waiting for manual solve...');
+                    this.captchaDetected = true;
+                    await this.wait(5000);
+                    continue;
+                } else {
+                    this.captchaDetected = false;
+                }
+                
+                // Extract videos
+                const videos = await this.strategy.extractVideos();
+                
+                let foundNew = false;
+                for (const video of videos) {
+                    if (!processed.has(video.id)) {
+                        processed.add(video.id);
+                        foundNew = true;
+                        noNewVideosCount = 0;
+                        yield video;
+                        break;
+                    }
+                }
+                
+                if (!foundNew) {
+                    noNewVideosCount++;
+                    console.log(`⚠️ No new videos found (${noNewVideosCount}/5)`);
+                }
+                
+                // Scroll to next
+                await this.strategy.scrollToNext();
+                await this.wait(2000);
+            }
+        } finally {
+            console.log(`📊 Scroll session complete: ${processed.size} videos found`);
+        }
     }
 
     async getVideoDetails(video) {
-        const browser = video.platform === 'instagram' ? this.instagramBrowser : this.tiktokBrowser;
-        return await browser.getVideoDetails();
+        return await this.strategy.getVideoDetails();
     }
 
     async getComments(video, limit = 50) {
-        const browser = video.platform === 'instagram' ? this.instagramBrowser : this.tiktokBrowser;
-        return await browser.getComments(limit);
+        return await this.strategy.getComments(limit);
     }
 
     async postComment(video, text) {
-        const browser = video.platform === 'instagram' ? this.instagramBrowser : this.tiktokBrowser;
-        return await browser.postComment(text);
+        return await this.strategy.postComment(text);
     }
 
     getCaptchaStatus() {
-        return this.tiktokBrowser.getCaptchaStatus() || this.instagramBrowser.getCaptchaStatus();
+        return this.captchaDetected;
     }
 
     async stopScrolling() {
-        this.tiktokBrowser.stop();
-        this.instagramBrowser.stop();
+        // Strategy handles its own cleanup
+        console.log('⏹️ Stopping scroll session');
     }
 
     async disconnect() {
-        await this.stopScrolling();
-        if (this.browser) {
-            await this.browser.disconnect();
-            console.log('🔌 Disconnected from Chrome');
+        if (this.strategy) {
+            await this.strategy.disconnect();
+            this.strategy = null;
             this.isConnected = false;
         }
     }
 
+    /**
+     * Get current strategy info
+     */
+    getStrategyInfo() {
+        if (!this.strategy) {
+            return null;
+        }
+        
+        return {
+            name: this.strategy.getName(),
+            description: this.strategy.getDescription(),
+            capabilities: this.strategy.getCapabilities()
+        };
+    }
+
+    /**
+     * Switch to a different automation strategy
+     */
+    async switchStrategy(newStrategyType, config = {}) {
+        console.log(`🔄 Switching to ${newStrategyType} strategy...`);
+        
+        // Disconnect current
+        if (this.strategy) {
+            await this.disconnect();
+        }
+        
+        // Connect new
+        await this.connect(newStrategyType, config);
+    }
+
     wait(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    randomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 }
 

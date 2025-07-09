@@ -15,7 +15,7 @@ class Database {
 
     init() {
         this.db.serialize(() => {
-            // Videos table with platform column
+            // Videos table with platform and analysis data
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS videos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,16 +26,22 @@ class Database {
                     url TEXT,
                     is_relevant BOOLEAN DEFAULT 0,
                     relevance_score REAL,
+                    category TEXT,
+                    analysis_data TEXT,
                     processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             `);
 
-            // Add platform column to existing table if not exists
-            this.db.run(`
-                ALTER TABLE videos ADD COLUMN platform TEXT DEFAULT 'tiktok'
-            `, (err) => {
+            // Add new columns to existing table if not exists
+            this.db.run(`ALTER TABLE videos ADD COLUMN category TEXT`, (err) => {
                 if (err && !err.message.includes('duplicate column')) {
-                    console.error('Error adding platform column:', err);
+                    console.error('Error adding category column:', err);
+                }
+            });
+
+            this.db.run(`ALTER TABLE videos ADD COLUMN analysis_data TEXT`, (err) => {
+                if (err && !err.message.includes('duplicate column')) {
+                    console.error('Error adding analysis_data column:', err);
                 }
             });
 
@@ -74,8 +80,8 @@ class Database {
             // Default settings
             const defaults = [
                 ['min_relevance_score', process.env.MIN_RELEVANCE_SCORE || '0.7'],
-                ['comment_delay_seconds', process.env.COMMENT_DELAY_SECONDS || '10'],
-                ['max_comments_per_hour', process.env.MAX_COMMENTS_PER_HOUR || '30']
+                ['comment_delay_seconds', process.env.COMMENT_DELAY_SECONDS || '30'],
+                ['max_comments_per_hour', process.env.MAX_COMMENTS_PER_HOUR || '20']
             ];
 
             const stmt = this.db.prepare('INSERT OR IGNORE INTO settings VALUES (?, ?)');
@@ -100,9 +106,18 @@ class Database {
 
     async updateVideoRelevance(videoId, analysis) {
         return new Promise((resolve, reject) => {
+            // Store full analysis as JSON
+            const analysisJson = JSON.stringify(analysis);
+            
             this.db.run(
-                'UPDATE videos SET is_relevant = ?, relevance_score = ? WHERE id = ?',
-                [analysis.relevant ? 1 : 0, analysis.score, videoId],
+                'UPDATE videos SET is_relevant = ?, relevance_score = ?, category = ?, analysis_data = ? WHERE id = ?',
+                [
+                    analysis.relevant ? 1 : 0, 
+                    analysis.score, 
+                    analysis.category || 'other',
+                    analysisJson,
+                    videoId
+                ],
                 err => err ? reject(err) : resolve()
             );
         });
@@ -162,7 +177,7 @@ class Database {
         });
     }
 
-    // Stats methods with platform support
+    // Stats methods
     async getStats() {
         return new Promise((resolve, reject) => {
             // Get session stats

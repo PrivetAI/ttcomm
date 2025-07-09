@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Social Media Bot</title>
+    <title>TikTok Bot Control - Automation Panel</title>
     <style>
         body {
             font-family: monospace;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             background: #f0f0f0;
@@ -74,23 +74,6 @@
             background: #f0f0f0;
         }
         
-        .platform-badge {
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-        
-        .platform-tiktok {
-            background: #ff0050;
-            color: white;
-        }
-        
-        .platform-instagram {
-            background: #833AB4;
-            color: white;
-        }
-        
         .tab-buttons {
             margin: 20px 0;
         }
@@ -116,9 +99,158 @@
         }
         
         input, select {
-            padding: 5px;
+            padding: 8px;
             margin: 5px;
             font-family: monospace;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+        
+        .search-input {
+            width: 300px;
+        }
+        
+        .notification {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .notification.show {
+            display: block;
+        }
+        
+        .notification.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .notification.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .notification.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .status-messages {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .status-message {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .status-message:last-child {
+            border-bottom: none;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .automation-selector {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .automation-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .automation-option input[type="radio"] {
+            margin: 0;
+        }
+        
+        .automation-info {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        
+        .automation-name {
+            font-weight: bold;
+        }
+        
+        .automation-desc {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .automation-status {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        
+        .automation-status.available {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .automation-status.unavailable {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 3px solid #007bff;
         }
     </style>
 </head>
@@ -127,45 +259,84 @@
         ⚠️ CAPTCHA DETECTED - Please solve it manually in the browser window
     </div>
 
-    <h1>Social Media Bot Control Panel</h1>
+    <h1>TikTok Bot Control Panel</h1>
+    
+    <div class="notification" id="notification"></div>
     
     <div class="card">
-        <h2>Control</h2>
-        <p>Status: <span id="status" class="status stopped">Stopped</span></p>
-        <p>Session ID: <span id="sessionId">-</span></p>
-        <p>Videos: <span id="videoCount">0</span> | Comments: <span id="commentCount">0</span></p>
-        
-        <div>
-            <label>Feed Type:
-                <select id="feedType">
-                    <option value="foryou">For You</option>
-                    <option value="hashtag">Hashtag</option>
-                </select>
-            </label>
-            <label>Hashtags (TikTok only):
-                <input type="text" id="hashtags" placeholder="work,job,career">
-            </label>
+        <h2>Automation Method</h2>
+        <div class="automation-selector">
+            <div class="automation-option">
+                <input type="radio" id="directMode" name="automation" value="direct" checked>
+                <div class="automation-info">
+                    <label for="directMode" class="automation-name">Direct Puppeteer</label>
+                    <span class="automation-desc">Direct Chrome control with stealth features</span>
+                    <span class="automation-status available">✓ Available</span>
+                </div>
+            </div>
+            
+            <div class="automation-option">
+                <input type="radio" id="mcpMode" name="automation" value="mcp">
+                <div class="automation-info">
+                    <label for="mcpMode" class="automation-name">MCP Puppeteer</label>
+                    <span class="automation-desc">Model Context Protocol automation</span>
+                    <span id="mcpStatus" class="automation-status">Checking...</span>
+                </div>
+            </div>
         </div>
-        
-        <div>
-            <button id="startBtn" onclick="startBot()">Start</button>
-            <button id="stopBtn" onclick="stopBot()" disabled>Stop</button>
-            <button onclick="refreshStatus()">Refresh</button>
+        <div class="help-text">
+            <strong>Direct Mode:</strong> Uses Puppeteer directly for fast, reliable automation with built-in stealth features.<br>
+            <strong>MCP Mode:</strong> Uses Model Context Protocol for standardized browser automation (requires MCP server).
         </div>
     </div>
     
     <div class="card">
-        <h2>Overall Stats</h2>
-        <p>Total Sessions: <span id="totalSessions">-</span></p>
-        <p>Total Videos: <span id="totalVideos">-</span> 
-           (TikTok: <span id="tiktokVideos">-</span>, 
-            Instagram: <span id="instagramVideos">-</span>)</p>
-        <p>Total Comments: <span id="totalComments">-</span></p>
+        <h2>Bot Control</h2>
+        <p>Status: <span id="status" class="status stopped">Stopped</span></p>
+        <p>Current Search: <span id="currentSearch">-</span></p>
+        <p>Automation Mode: <span id="currentStrategy">-</span></p>
+        
+        <div class="control-row">
+            <label>Search Query:</label>
+            <input type="text" 
+                   id="searchQuery" 
+                   class="search-input" 
+                   placeholder="e.g., job search tips, remote work, etc."
+                   value="">
+            <button id="startBtn" onclick="startBot()">Start Bot</button>
+            <button id="stopBtn" onclick="stopBot()" disabled>Stop Bot</button>
+        </div>
+        
+        <div class="status-messages" id="statusMessages">
+            <div class="status-message">Bot ready to start...</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Live Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value" id="videoCount">0</div>
+                <div class="stat-label">Videos Analyzed</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="commentCount">0</div>
+                <div class="stat-label">Comments Posted</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="successRate">0%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="sessionTime">0m</div>
+                <div class="stat-label">Session Time</div>
+            </div>
+        </div>
     </div>
     
     <div class="tab-buttons">
-        <button class="tab-button active" onclick="showTab('videos')">Videos</button>
-        <button class="tab-button" onclick="showTab('comments')">Comments</button>
+        <button class="tab-button active" onclick="showTab('videos')">Recent Videos</button>
+        <button class="tab-button" onclick="showTab('comments')">Posted Comments</button>
     </div>
     
     <div class="card">
@@ -174,25 +345,24 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Platform</th>
                         <th>Author</th>
                         <th>Description</th>
                         <th>Relevant</th>
                         <th>Score</th>
+                        <th>Category</th>
                     </tr>
                 </thead>
                 <tbody id="videoList">
-                    <tr><td colspan="5">No data</td></tr>
+                    <tr><td colspan="5">No videos analyzed yet</td></tr>
                 </tbody>
             </table>
         </div>
         
         <div id="comments" class="tab-content">
-            <h2>Recent Comments</h2>
+            <h2>Posted Comments</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>Platform</th>
                         <th>Video</th>
                         <th>Comment</th>
                         <th>Status</th>
@@ -200,7 +370,7 @@
                     </tr>
                 </thead>
                 <tbody id="commentList">
-                    <tr><td colspan="5">No data</td></tr>
+                    <tr><td colspan="4">No comments posted yet</td></tr>
                 </tbody>
             </table>
         </div>
@@ -208,6 +378,59 @@
 
     <script>
         let currentTab = 'videos';
+        let sessionStartTime = null;
+        let statusUpdateInterval = null;
+        let mcpAvailable = false;
+        
+        // Check MCP availability on load
+        async function checkMCPAvailability() {
+            try {
+                const strategies = await api('strategies');
+                const mcpStrategy = strategies.find(s => s.key === 'mcp');
+                mcpAvailable = mcpStrategy && mcpStrategy.available;
+                
+                const mcpStatus = document.getElementById('mcpStatus');
+                const mcpRadio = document.getElementById('mcpMode');
+                
+                if (mcpAvailable) {
+                    mcpStatus.textContent = '✓ Available';
+                    mcpStatus.className = 'automation-status available';
+                    mcpRadio.disabled = false;
+                } else {
+                    mcpStatus.textContent = '✗ Not installed';
+                    mcpStatus.className = 'automation-status unavailable';
+                    mcpRadio.disabled = true;
+                }
+            } catch (error) {
+                console.error('Error checking MCP:', error);
+            }
+        }
+        
+        // Show notification instead of alert
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.className = `notification ${type} show`;
+            notification.textContent = message;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 5000);
+        }
+        
+        // Add status message to the log
+        function addStatusMessage(message) {
+            const container = document.getElementById('statusMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'status-message';
+            messageDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            // Keep only last 50 messages
+            while (container.children.length > 50) {
+                container.removeChild(container.firstChild);
+            }
+        }
         
         async function api(endpoint, method = 'GET', data = null) {
             const options = {
@@ -220,113 +443,176 @@
             }
             
             const response = await fetch(`/api/${endpoint}`, options);
-            return await response.json();
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(result.error || 'API request failed');
+            }
+            
+            return result;
         }
         
         async function refreshStatus() {
             try {
                 const status = await api('status');
+                
+                // Update status
                 document.getElementById('status').textContent = status.running ? 'Running' : 'Stopped';
                 document.getElementById('status').className = `status ${status.running ? 'running' : 'stopped'}`;
-                document.getElementById('sessionId').textContent = status.sessionId || '-';
+                
+                // Update current search and strategy
+                document.getElementById('currentSearch').textContent = status.currentSearch || '-';
+                document.getElementById('currentStrategy').textContent = 
+                    status.currentStrategy === 'mcp' ? 'MCP' : 
+                    status.currentStrategy === 'direct' ? 'Direct' : '-';
+                
+                // Update stats
                 document.getElementById('videoCount').textContent = status.stats.videos;
                 document.getElementById('commentCount').textContent = status.stats.comments;
+                
+                // Calculate success rate
+                const rate = status.stats.videos > 0 
+                    ? Math.round((status.stats.comments / status.stats.videos) * 100) 
+                    : 0;
+                document.getElementById('successRate').textContent = rate + '%';
+                
+                // Update session time
+                if (status.running && sessionStartTime) {
+                    const elapsed = Math.round((Date.now() - sessionStartTime) / 1000 / 60);
+                    document.getElementById('sessionTime').textContent = elapsed + 'm';
+                }
                 
                 // Handle captcha banner
                 const captchaBanner = document.getElementById('captchaBanner');
                 if (status.captchaDetected) {
                     captchaBanner.classList.add('show');
                     document.body.classList.add('captcha-active');
+                    addStatusMessage('⚠️ CAPTCHA detected - please solve manually');
                 } else {
                     captchaBanner.classList.remove('show');
                     document.body.classList.remove('captcha-active');
                 }
                 
+                // Update buttons
                 document.getElementById('startBtn').disabled = status.running;
                 document.getElementById('stopBtn').disabled = !status.running;
+                document.getElementById('searchQuery').disabled = status.running;
+                document.querySelectorAll('input[name="automation"]').forEach(el => {
+                    el.disabled = status.running || (el.value === 'mcp' && !mcpAvailable);
+                });
                 
-                const stats = await api('stats');
-                document.getElementById('totalSessions').textContent = stats.total_sessions || 0;
-                document.getElementById('totalVideos').textContent = stats.total_videos || 0;
-                document.getElementById('tiktokVideos').textContent = stats.tiktok_videos || 0;
-                document.getElementById('instagramVideos').textContent = stats.instagram_videos || 0;
-                document.getElementById('totalComments').textContent = stats.total_comments || 0;
+                // Add status messages
+                if (status.lastAction) {
+                    addStatusMessage(status.lastAction);
+                }
                 
+                // Load recent data
                 if (currentTab === 'videos') {
                     await loadVideos();
                 } else {
                     await loadComments();
                 }
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error refreshing status:', error);
             }
         }
         
         async function startBot() {
-            const feedType = document.getElementById('feedType').value;
-            const hashtags = document.getElementById('hashtags').value.split(',').filter(h => h.trim());
+            const searchQuery = document.getElementById('searchQuery').value.trim();
+            const automationStrategy = document.querySelector('input[name="automation"]:checked').value;
+            
+            if (!searchQuery) {
+                showNotification('Please enter a search query', 'error');
+                return;
+            }
             
             try {
-                await api('start', 'POST', { feedType, hashtags });
-                alert('Bot started!');
+                addStatusMessage(`Starting bot with ${automationStrategy} automation...`);
+                const result = await api('start', 'POST', { 
+                    searchQuery,
+                    automationStrategy
+                });
+                
+                showNotification(`Bot started with ${automationStrategy.toUpperCase()} automation!`, 'success');
+                addStatusMessage(`Bot started with search: "${searchQuery}"`);
+                sessionStartTime = Date.now();
+                
+                // Start more frequent updates when bot is running
+                if (statusUpdateInterval) clearInterval(statusUpdateInterval);
+                statusUpdateInterval = setInterval(refreshStatus, 2000);
+                
                 refreshStatus();
             } catch (error) {
-                alert('Error starting bot: ' + error.message);
+                showNotification('Error starting bot: ' + error.message, 'error');
+                addStatusMessage('❌ Failed to start: ' + error.message);
             }
         }
         
         async function stopBot() {
             try {
+                addStatusMessage('Stopping bot...');
                 await api('stop', 'POST');
-                alert('Bot stopped!');
+                
+                showNotification('Bot stopped', 'info');
+                addStatusMessage('Bot stopped by user');
+                sessionStartTime = null;
+                
+                // Return to normal update frequency
+                if (statusUpdateInterval) clearInterval(statusUpdateInterval);
+                statusUpdateInterval = setInterval(refreshStatus, 5000);
+                
                 refreshStatus();
             } catch (error) {
-                alert('Error stopping bot: ' + error.message);
+                showNotification('Error stopping bot: ' + error.message, 'error');
+                addStatusMessage('❌ Failed to stop: ' + error.message);
             }
-        }
-        
-        function getPlatformBadge(platform) {
-            return `<span class="platform-badge platform-${platform}">${platform.toUpperCase()}</span>`;
         }
         
         async function loadVideos() {
-            const videos = await api('videos');
-            const tbody = document.getElementById('videoList');
-            
-            if (videos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">No videos yet</td></tr>';
-                return;
+            try {
+                const videos = await api('videos');
+                const tbody = document.getElementById('videoList');
+                
+                if (videos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No videos analyzed yet</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = videos.map(v => `
+                    <tr>
+                        <td>@${v.author}</td>
+                        <td title="${v.description || ''}">${(v.description || '').substring(0, 50)}...</td>
+                        <td>${v.is_relevant ? '✅' : '❌'}</td>
+                        <td>${v.relevance_score ? (v.relevance_score * 100).toFixed(0) + '%' : '-'}</td>
+                        <td>${v.category || '-'}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading videos:', error);
             }
-            
-            tbody.innerHTML = videos.map(v => `
-                <tr>
-                    <td>${getPlatformBadge(v.platform || 'tiktok')}</td>
-                    <td>@${v.author}</td>
-                    <td>${(v.description || '').substring(0, 50)}...</td>
-                    <td>${v.is_relevant ? 'Yes' : 'No'}</td>
-                    <td>${v.relevance_score ? (v.relevance_score * 100).toFixed(0) + '%' : '-'}</td>
-                </tr>
-            `).join('');
         }
         
         async function loadComments() {
-            const comments = await api('comments');
-            const tbody = document.getElementById('commentList');
-            
-            if (comments.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">No comments yet</td></tr>';
-                return;
+            try {
+                const comments = await api('comments');
+                const tbody = document.getElementById('commentList');
+                
+                if (comments.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4">No comments posted yet</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = comments.map(c => `
+                    <tr>
+                        <td>@${c.author}</td>
+                        <td>${c.comment_text}</td>
+                        <td>${c.success ? '✅ Posted' : '❌ Failed'}</td>
+                        <td>${new Date(c.posted_at).toLocaleTimeString()}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading comments:', error);
             }
-            
-            tbody.innerHTML = comments.map(c => `
-                <tr>
-                    <td>${getPlatformBadge(c.platform || 'tiktok')}</td>
-                    <td>@${c.author}</td>
-                    <td>${c.comment_text}</td>
-                    <td>${c.success ? 'Posted' : 'Failed'}</td>
-                    <td>${new Date(c.posted_at).toLocaleString()}</td>
-                </tr>
-            `).join('');
         }
         
         function showTab(tab) {
@@ -349,11 +635,28 @@
             }
         }
         
-        // Auto refresh every 5 seconds
-        setInterval(refreshStatus, 5000);
+        // Enter key to start bot
+        document.getElementById('searchQuery').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('startBtn').disabled) {
+                startBot();
+            }
+        });
         
-        // Initial load
+        // Initial setup
+        checkMCPAvailability();
+        statusUpdateInterval = setInterval(refreshStatus, 5000);
         refreshStatus();
+        
+        // Load saved search query from localStorage
+        const savedQuery = localStorage.getItem('lastSearchQuery');
+        if (savedQuery) {
+            document.getElementById('searchQuery').value = savedQuery;
+        }
+        
+        // Save search query when changed
+        document.getElementById('searchQuery').addEventListener('change', (e) => {
+            localStorage.setItem('lastSearchQuery', e.target.value);
+        });
     </script>
 </body>
 </html>
