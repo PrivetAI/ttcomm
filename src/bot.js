@@ -28,6 +28,9 @@ class Bot {
             // Set automation strategy
             this.automationStrategy = config.automationStrategy || 'direct';
             
+            // Set scroll mode
+            this.scrollMode = config.scrollMode || 'search'; // 'search' or 'feed'
+            
             // Validate strategy
             if (this.automationStrategy !== 'direct' && this.automationStrategy !== 'mcp') {
                 throw new Error(`Invalid automation strategy: ${this.automationStrategy}`);
@@ -70,10 +73,10 @@ class Bot {
             let hourStart = Date.now();
             
             // Initial delay
-            this.setAction('🎬 Starting search session...');
+            this.setAction(`🎬 Starting ${this.scrollMode === 'feed' ? 'feed' : 'search'} session...`);
             await this.stealth.humanDelay('reading');
             
-            // Process videos from search
+            // Process videos based on mode
             while (this.isRunning) {
                 // Session duration check
                 const sessionDuration = Date.now() - this.sessionStartTime;
@@ -82,8 +85,16 @@ class Bot {
                     break;
                 }
                 
-                // Get videos from search
-                const videoIterator = this.browser.scrollSearch(config.searchQuery);
+                // Get video iterator based on mode
+                let videoIterator;
+                if (this.scrollMode === 'feed') {
+                    videoIterator = this.browser.scrollFeed();
+                } else {
+                    if (!config.searchQuery) {
+                        throw new Error('Search query required for search mode');
+                    }
+                    videoIterator = this.browser.scrollSearch(config.searchQuery);
+                }
                 
                 const { value: video, done } = await videoIterator.next();
                 

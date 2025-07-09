@@ -183,19 +183,36 @@ class MCPPuppeteerStrategy extends AutomationStrategy {
                 const isSearchPage = window.location.pathname.includes('/search');
                 
                 if (isSearchPage) {
-                    const videoContainers = document.querySelectorAll('[data-e2e="search-video-container"], [class*="video-feed"] > div');
+                    // Search page - look for search result items
+                    const videoContainers = document.querySelectorAll('[data-e2e="search_top-item"], [data-e2e="search-item"]');
                     
                     videoContainers.forEach(container => {
-                        const link = container.querySelector('a[href*="/video/"]');
-                        if (!link) return;
+                        const link = container.querySelector('a[href*="/video/"], a[href*="/@"]');
+                        if (!link || !link.href.includes('/video/')) return;
                         
                         const videoUrl = link.href;
                         const videoId = videoUrl.match(/video\\/(\\d+)/)?.[1];
                         if (!videoId) return;
                         
                         const author = videoUrl.match(/@([^/]+)/)?.[1] || 'unknown';
-                        const desc = container.querySelector('[class*="video-card-caption"], [class*="caption"], [title]');
-                        const description = desc?.textContent || desc?.title || '';
+                        
+                        // Try multiple selectors for description
+                        const descSelectors = [
+                            '[data-e2e="search-card-desc"]',
+                            '[class*="video-card-caption"]',
+                            '[class*="caption"]',
+                            'h3',
+                            '[title]'
+                        ];
+                        
+                        let description = '';
+                        for (const selector of descSelectors) {
+                            const desc = container.querySelector(selector);
+                            if (desc) {
+                                description = desc.textContent || desc.title || '';
+                                break;
+                            }
+                        }
                         
                         results.push({
                             id: videoId,

@@ -66,6 +66,24 @@ class BrowserManager {
         return loggedIn;
     }
 
+    async *scrollFeed() {
+        if (!this.strategy) {
+            throw new Error('No automation strategy initialized');
+        }
+        
+        console.log('📱 Scrolling TikTok feed...');
+        
+        // Navigate to main feed if not there
+        const currentUrl = await this.strategy.executeScript(() => window.location.href);
+        if (!currentUrl.includes('foryou') && !currentUrl.match(/tiktok\.com\/?$/)) {
+            await this.strategy.navigate('https://www.tiktok.com');
+            await this.wait(3000);
+        }
+        
+        // Yield videos from feed
+        yield* this.scroll();
+    }
+
     async *scrollSearch(searchQuery) {
         if (!this.strategy) {
             throw new Error('No automation strategy initialized');
@@ -80,6 +98,7 @@ class BrowserManager {
         // Yield videos from scroll
         yield* this.scroll();
     }
+
 
     async *scroll() {
         let processed = new Set();

@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 let bot = null;
 let currentSearch = null;
 let currentStrategy = null;
-
+let currentMode = null;
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));

@@ -290,14 +290,29 @@
         </div>
     </div>
     
+  <div class="card">
+        <h2>Scroll Mode</h2>
+        <div class="control-row">
+            <label>
+                <input type="radio" name="scrollMode" value="search" checked>
+                Search Mode - Search videos by query
+            </label>
+            <label style="margin-left: 20px;">
+                <input type="radio" name="scrollMode" value="feed">
+                Feed Mode - Scroll main feed (For You page)
+            </label>
+        </div>
+    </div>
+    
     <div class="card">
         <h2>Bot Control</h2>
         <p>Status: <span id="status" class="status stopped">Stopped</span></p>
+        <p>Current Mode: <span id="currentMode">-</span></p>
         <p>Current Search: <span id="currentSearch">-</span></p>
-        <p>Automation Mode: <span id="currentStrategy">-</span></p>
+        <p>Automation: <span id="currentStrategy">-</span></p>
         
         <div class="control-row">
-            <label>Search Query:</label>
+            <label id="searchLabel">Search Query:</label>
             <input type="text" 
                    id="searchQuery" 
                    class="search-input" 
