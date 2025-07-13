@@ -12,10 +12,8 @@ class Bot {
         this.isRunning = false;
         this.sessionId = null;
         this.stats = { videos: 0, comments: 0 };
-        this.videosWithoutComment = 0;
         this.sessionStartTime = Date.now();
         this.lastAction = null;
-        this.automationStrategy = 'direct'; // default
         this.scrollMode = 'search'; // 'search' or 'feed'
     }
 
@@ -26,29 +24,12 @@ class Bot {
 
     async start(config = {}) {
         try {
-            // Set automation strategy
-            this.automationStrategy = config.automationStrategy || 'direct';
-            
             // Set scroll mode
-            this.scrollMode = config.scrollMode || 'search'; // 'search' or 'feed'
+            this.scrollMode = config.scrollMode || 'search';
             
-            // Validate strategy
-            if (this.automationStrategy !== 'direct' && this.automationStrategy !== 'mcp') {
-                throw new Error(`Invalid automation strategy: ${this.automationStrategy}`);
-            }
-            
-            // Connect to browser with selected strategy
-            this.setAction(`🔌 Connecting with ${this.automationStrategy.toUpperCase()} automation...`);
-            
-            if (config.autoSelectBest) {
-                await this.browser.connectBest();
-            } else {
-                await this.browser.connect(this.automationStrategy, config.strategyConfig);
-            }
-            
-            // Log strategy info
-            const strategyInfo = this.browser.getStrategyInfo();
-            this.setAction(`✅ Using ${strategyInfo.name}: ${strategyInfo.description}`);
+            // Connect to browser
+            this.setAction('🔌 Connecting to Chrome...');
+            await this.browser.connect();
             
             // Check login
             this.setAction('🔐 Checking TikTok login...');
@@ -100,7 +81,7 @@ class Bot {
                 const { value: video, done } = await videoIterator.next();
                 
                 if (done || !video) {
-                    this.setAction('⏹️ No more videos in search results');
+                    this.setAction('⏹️ No more videos');
                     break;
                 }
                 
@@ -127,28 +108,19 @@ class Bot {
                 await this.simulateWatching();
                 
                 // Get video details
-                this.setAction('📊 Analyzing video engagement...');
-                const videoDetails = await this.browser.getVideoDetails(video);
+                this.setAction('📊 Getting video engagement...');
+                const videoDetails = await this.browser.getVideoDetails();
                 
                 if (videoDetails) {
                     this.setAction(`💙 ${videoDetails.counts.likes} likes | 💬 ${videoDetails.counts.comments} comments`);
                 }
                 
-                // Decide if we should analyze
-                const shouldAnalyze = this.shouldAnalyzeVideo();
-                
-                if (!shouldAnalyze) {
-                    this.setAction('⏭️ Skipping analysis (watching only)');
-                    this.videosWithoutComment++;
-                    continue;
-                }
-                
                 // Get comments
                 this.setAction('💬 Reading video comments...');
-                const comments = await this.browser.getComments(video, 30);
+                const comments = await this.browser.getComments(30);
                 this.setAction(`📝 Found ${comments.length} comments to analyze`);
                 
-                // Analyze video
+                // Always analyze video (removed skip logic)
                 this.setAction('🤖 AI analyzing video relevance...');
                 const analysis = await this.ai.analyzeVideoWithComments(video, comments, videoDetails);
                 await db.updateVideoRelevance(videoId, analysis);
@@ -170,44 +142,36 @@ class Bot {
                         hourStart = Date.now();
                     }
                     
-                    // Decide if we should comment
-                    if (this.shouldPostComment()) {
-                        // Generate comment
-                        this.setAction('✍️ AI generating contextual comment...');
-                        const comment = await this.ai.generateContextualComment(
-                            video, 
-                            analysis, 
-                            comments.slice(0, 10)
-                        );
+                    // Generate comment
+                    this.setAction('✍️ AI generating contextual comment...');
+                    const comment = await this.ai.generateContextualComment(
+                        video, 
+                        analysis, 
+                        comments.slice(0, 10)
+                    );
+                    
+                    this.setAction(`💬 Comment ready: "${comment.comment}"`);
+                    
+                    // Extra delay
+                    await this.stealth.humanDelay('beforeComment');
+                    
+                    // Post comment
+                    this.setAction('📤 Posting comment...');
+                    const success = await this.browser.postComment(comment.comment);
+                    await db.saveComment(videoId, comment.comment, success);
+                    
+                    if (success) {
+                        this.stats.comments++;
+                        hourlyComments++;
+                        this.setAction('✅ Comment posted successfully!');
                         
-                        this.setAction(`💬 Comment ready: "${comment.comment}"`);
-                        
-                        // Extra delay
-                        await this.stealth.humanDelay('beforeComment');
-                        
-                        // Post comment
-                        this.setAction('📤 Posting comment...');
-                        const success = await this.browser.postComment(video, comment.comment);
-                        await db.saveComment(videoId, comment.comment, success);
-                        
-                        if (success) {
-                            this.stats.comments++;
-                            hourlyComments++;
-                            this.videosWithoutComment = 0;
-                            this.setAction('✅ Comment posted successfully!');
-                            
-                            // Delay after commenting
-                            await this.stealth.wait(commentDelay);
-                        } else {
-                            this.setAction('❌ Failed to post comment');
-                        }
+                        // Delay after commenting
+                        await this.stealth.wait(commentDelay);
                     } else {
-                        this.setAction('💭 Skipping comment (being selective)');
-                        this.videosWithoutComment++;
+                        this.setAction('❌ Failed to post comment');
                     }
                 } else {
                     this.setAction('⏭️ Video not relevant enough for commenting');
-                    this.videosWithoutComment++;
                 }
                 
                 // Update session stats
@@ -254,30 +218,12 @@ class Bot {
         }
     }
 
-    shouldAnalyzeVideo() {
-        if (this.videosWithoutComment >= 2) {
-            return true;
-        }
-        return Math.random() < 0.6;
-    }
-
-    shouldPostComment() {
-        if (this.videosWithoutComment >= 3) {
-            return true;
-        }
-        return Math.random() < 0.7;
-    }
-
     wait(ms) {
         return this.stealth.wait(ms);
     }
 
     getCaptchaStatus() {
         return this.browser.getCaptchaStatus();
-    }
-
-    getAutomationStrategy() {
-        return this.automationStrategy;
     }
 }
 
@@ -294,20 +240,16 @@ if (require.main === module) {
     // Parse command line arguments
     const args = process.argv.slice(2);
     const searchQuery = args.filter(arg => !arg.startsWith('--')).join(' ') || 'remote work tips';
-    const strategy = args.find(arg => arg.startsWith('--strategy='))?.split('=')[1] || 'direct';
+    const scrollMode = args.find(arg => arg.startsWith('--mode='))?.split('=')[1] || 'search';
     
-    // Validate strategy
-    if (strategy !== 'direct' && strategy !== 'mcp') {
-        console.error('❌ Invalid strategy. Use --strategy=direct or --strategy=mcp');
-        process.exit(1);
+    console.log(`🔍 Starting bot in ${scrollMode} mode`);
+    if (scrollMode === 'search') {
+        console.log(`🔍 Search query: "${searchQuery}"`);
     }
-    
-    console.log(`🔍 Starting bot with search: "${searchQuery}"`);
-    console.log(`🤖 Using ${strategy.toUpperCase()} automation`);
     
     bot.start({ 
         searchQuery,
-        automationStrategy: strategy
+        scrollMode
     });
 }
 

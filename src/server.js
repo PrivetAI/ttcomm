@@ -3,7 +3,6 @@ const express = require('express');
 const path = require('path');
 const Bot = require('./bot');
 const db = require('./db');
-const AutomationFactory = require('./automation/AutomationFactory');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,8 +10,8 @@ const PORT = process.env.PORT || 3000;
 // Bot instance
 let bot = null;
 let currentSearch = null;
-let currentStrategy = null;
 let currentMode = null;
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
@@ -25,34 +24,9 @@ app.get('/api/status', (req, res) => {
         stats: bot?.stats || { videos: 0, comments: 0 },
         captchaDetected: bot?.getCaptchaStatus() || false,
         currentSearch: currentSearch,
-        currentStrategy: currentStrategy,
         currentMode: currentMode,
         lastAction: bot?.lastAction || null
     });
-});
-
-app.get('/api/strategies', async (req, res) => {
-    try {
-        const strategies = AutomationFactory.getAvailableStrategies();
-        
-        // Check actual availability
-        const mcpAvailable = await AutomationFactory.checkMCPAvailability();
-        
-        // Add availability info
-        strategies.forEach(strategy => {
-            if (strategy.key === 'mcp') {
-                strategy.available = mcpAvailable;
-                strategy.requirements = mcpAvailable ? [] : ['MCP server not installed'];
-            } else {
-                strategy.available = true;
-                strategy.requirements = [];
-            }
-        });
-        
-        res.json(strategies);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
 });
 
 app.post('/api/start', async (req, res) => {
@@ -61,22 +35,19 @@ app.post('/api/start', async (req, res) => {
             return res.status(400).json({ error: 'Bot already running' });
         }
         
-        const { searchQuery, automationStrategy = 'direct', autoSelectBest = false, scrollMode = 'search' } = req.body;
+        const { searchQuery, scrollMode = 'search' } = req.body;
         
         if (scrollMode === 'search' && (!searchQuery || !searchQuery.trim())) {
             return res.status(400).json({ error: 'Search query is required for search mode' });
         }
         
         currentSearch = searchQuery;
-        currentStrategy = automationStrategy;
         currentMode = scrollMode;
         bot = new Bot();
         
-        // Start bot with selected strategy
+        // Start bot
         bot.start({ 
             searchQuery,
-            automationStrategy,
-            autoSelectBest,
             scrollMode
         }).catch(error => {
             console.error('Bot error:', error);
@@ -90,7 +61,7 @@ app.post('/api/start', async (req, res) => {
             success: true, 
             message: 'Bot started',
             searchQuery,
-            automationStrategy: autoSelectBest ? 'auto' : automationStrategy
+            scrollMode
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -105,7 +76,7 @@ app.post('/api/stop', async (req, res) => {
         
         await bot.stop();
         currentSearch = null;
-        currentStrategy = null;
+        currentMode = null;
         res.json({ success: true, message: 'Bot stopped' });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -142,11 +113,7 @@ app.get('/api/comments', async (req, res) => {
 // Start server
 app.listen(PORT, () => {
     console.log(`✅ Server running at http://localhost:${PORT}`);
-    console.log(`🤖 Available automation strategies:`);
-    
-    AutomationFactory.getAvailableStrategies().forEach(strategy => {
-        console.log(`   - ${strategy.name}: ${strategy.description}`);
-    });
+    console.log(`🤖 TikTok Bot ready - Direct Puppeteer automation`);
 });
 
 // Graceful shutdown

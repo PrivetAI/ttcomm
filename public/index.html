@@ -193,57 +193,6 @@
             margin-top: 5px;
         }
         
-        .automation-selector {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 5px;
-        }
-        
-        .automation-option {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .automation-option input[type="radio"] {
-            margin: 0;
-        }
-        
-        .automation-info {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-        
-        .automation-name {
-            font-weight: bold;
-        }
-        
-        .automation-desc {
-            font-size: 12px;
-            color: #666;
-        }
-        
-        .automation-status {
-            font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 3px;
-            display: inline-block;
-        }
-        
-        .automation-status.available {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .automation-status.unavailable {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
         .help-text {
             font-size: 12px;
             color: #666;
@@ -264,33 +213,6 @@
     <div class="notification" id="notification"></div>
     
     <div class="card">
-        <h2>Automation Method</h2>
-        <div class="automation-selector">
-            <div class="automation-option">
-                <input type="radio" id="directMode" name="automation" value="direct" checked>
-                <div class="automation-info">
-                    <label for="directMode" class="automation-name">Direct Puppeteer</label>
-                    <span class="automation-desc">Direct Chrome control with stealth features</span>
-                    <span class="automation-status available">✓ Available</span>
-                </div>
-            </div>
-            
-            <div class="automation-option">
-                <input type="radio" id="mcpMode" name="automation" value="mcp">
-                <div class="automation-info">
-                    <label for="mcpMode" class="automation-name">MCP Puppeteer</label>
-                    <span class="automation-desc">Model Context Protocol automation</span>
-                    <span id="mcpStatus" class="automation-status">Checking...</span>
-                </div>
-            </div>
-        </div>
-        <div class="help-text">
-            <strong>Direct Mode:</strong> Uses Puppeteer directly for fast, reliable automation with built-in stealth features.<br>
-            <strong>MCP Mode:</strong> Uses Model Context Protocol for standardized browser automation (requires MCP server).
-        </div>
-    </div>
-    
-  <div class="card">
         <h2>Scroll Mode</h2>
         <div class="control-row">
             <label>
@@ -302,6 +224,10 @@
                 Feed Mode - Scroll main feed (For You page)
             </label>
         </div>
+        <div class="help-text">
+            <strong>Search Mode:</strong> Searches for videos by keyword and navigates to each video page.<br>
+            <strong>Feed Mode:</strong> Scrolls through the For You page feed.
+        </div>
     </div>
     
     <div class="card">
@@ -309,7 +235,6 @@
         <p>Status: <span id="status" class="status stopped">Stopped</span></p>
         <p>Current Mode: <span id="currentMode">-</span></p>
         <p>Current Search: <span id="currentSearch">-</span></p>
-        <p>Automation: <span id="currentStrategy">-</span></p>
         
         <div class="control-row">
             <label id="searchLabel">Search Query:</label>
@@ -395,33 +320,8 @@
         let currentTab = 'videos';
         let sessionStartTime = null;
         let statusUpdateInterval = null;
-        let mcpAvailable = false;
         
-        // Check MCP availability on load
-        async function checkMCPAvailability() {
-            try {
-                const strategies = await api('strategies');
-                const mcpStrategy = strategies.find(s => s.key === 'mcp');
-                mcpAvailable = mcpStrategy && mcpStrategy.available;
-                
-                const mcpStatus = document.getElementById('mcpStatus');
-                const mcpRadio = document.getElementById('mcpMode');
-                
-                if (mcpAvailable) {
-                    mcpStatus.textContent = '✓ Available';
-                    mcpStatus.className = 'automation-status available';
-                    mcpRadio.disabled = false;
-                } else {
-                    mcpStatus.textContent = '✗ Not installed';
-                    mcpStatus.className = 'automation-status unavailable';
-                    mcpRadio.disabled = true;
-                }
-            } catch (error) {
-                console.error('Error checking MCP:', error);
-            }
-        }
-        
-        // Show notification instead of alert
+        // Show notification
         function showNotification(message, type = 'info') {
             const notification = document.getElementById('notification');
             notification.className = `notification ${type} show`;
@@ -478,11 +378,8 @@
                 // Update current mode
                 document.getElementById('currentMode').textContent = status.currentMode || '-';
                 
-                // Update current search and strategy
+                // Update current search
                 document.getElementById('currentSearch').textContent = status.currentSearch || '-';
-                document.getElementById('currentStrategy').textContent = 
-                    status.currentStrategy === 'mcp' ? 'MCP' : 
-                    status.currentStrategy === 'direct' ? 'Direct' : '-';
                 
                 // Update stats
                 document.getElementById('videoCount').textContent = status.stats.videos;
@@ -515,8 +412,8 @@
                 document.getElementById('startBtn').disabled = status.running;
                 document.getElementById('stopBtn').disabled = !status.running;
                 document.getElementById('searchQuery').disabled = status.running;
-                document.querySelectorAll('input[name="automation"]').forEach(el => {
-                    el.disabled = status.running || (el.value === 'mcp' && !mcpAvailable);
+                document.querySelectorAll('input[name="scrollMode"]').forEach(el => {
+                    el.disabled = status.running;
                 });
                 
                 // Add status messages
@@ -537,7 +434,6 @@
         
         async function startBot() {
             const searchQuery = document.getElementById('searchQuery').value.trim();
-            const automationStrategy = document.querySelector('input[name="automation"]:checked').value;
             const scrollMode = document.querySelector('input[name="scrollMode"]:checked').value;
             
             if (scrollMode === 'search' && !searchQuery) {
@@ -546,14 +442,13 @@
             }
             
             try {
-                addStatusMessage(`Starting bot with ${automationStrategy} automation in ${scrollMode} mode...`);
+                addStatusMessage(`Starting bot in ${scrollMode} mode...`);
                 const result = await api('start', 'POST', { 
                     searchQuery: scrollMode === 'search' ? searchQuery : '',
-                    automationStrategy,
                     scrollMode
                 });
                 
-                showNotification(`Bot started in ${scrollMode} mode with ${automationStrategy.toUpperCase()} automation!`, 'success');
+                showNotification(`Bot started in ${scrollMode} mode!`, 'success');
                 addStatusMessage(`Bot started in ${scrollMode} mode${scrollMode === 'search' ? ` with search: "${searchQuery}"` : ''}`);
                 sessionStartTime = Date.now();
                 
@@ -655,7 +550,8 @@
             }
         }
         
-          document.querySelectorAll('input[name="scrollMode"]').forEach(radio => {
+        // Toggle search input visibility based on mode
+        document.querySelectorAll('input[name="scrollMode"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const searchLabel = document.getElementById('searchLabel');
                 const searchQuery = document.getElementById('searchQuery');
@@ -678,7 +574,6 @@
         });
         
         // Initial setup
-        checkMCPAvailability();
         statusUpdateInterval = setInterval(refreshStatus, 5000);
         refreshStatus();
         
