@@ -26,6 +26,7 @@ app.get('/api/status', (req, res) => {
         captchaDetected: bot?.getCaptchaStatus() || false,
         currentSearch: currentSearch,
         currentStrategy: currentStrategy,
+        currentMode: currentMode,
         lastAction: bot?.lastAction || null
     });
 });
@@ -60,21 +61,23 @@ app.post('/api/start', async (req, res) => {
             return res.status(400).json({ error: 'Bot already running' });
         }
         
-        const { searchQuery, automationStrategy = 'direct', autoSelectBest = false } = req.body;
+        const { searchQuery, automationStrategy = 'direct', autoSelectBest = false, scrollMode = 'search' } = req.body;
         
-        if (!searchQuery || !searchQuery.trim()) {
-            return res.status(400).json({ error: 'Search query is required' });
+        if (scrollMode === 'search' && (!searchQuery || !searchQuery.trim())) {
+            return res.status(400).json({ error: 'Search query is required for search mode' });
         }
         
         currentSearch = searchQuery;
         currentStrategy = automationStrategy;
+        currentMode = scrollMode;
         bot = new Bot();
         
         // Start bot with selected strategy
         bot.start({ 
             searchQuery,
             automationStrategy,
-            autoSelectBest
+            autoSelectBest,
+            scrollMode
         }).catch(error => {
             console.error('Bot error:', error);
             bot.lastAction = `Error: ${error.message}`;

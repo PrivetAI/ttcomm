@@ -129,7 +129,6 @@ class BrowserManager {
                         foundNew = true;
                         noNewVideosCount = 0;
                         yield video;
-                        break;
                     }
                 }
                 

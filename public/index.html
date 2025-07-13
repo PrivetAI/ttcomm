@@ -475,6 +475,9 @@
                 document.getElementById('status').textContent = status.running ? 'Running' : 'Stopped';
                 document.getElementById('status').className = `status ${status.running ? 'running' : 'stopped'}`;
                 
+                // Update current mode
+                document.getElementById('currentMode').textContent = status.currentMode || '-';
+                
                 // Update current search and strategy
                 document.getElementById('currentSearch').textContent = status.currentSearch || '-';
                 document.getElementById('currentStrategy').textContent = 
@@ -535,21 +538,23 @@
         async function startBot() {
             const searchQuery = document.getElementById('searchQuery').value.trim();
             const automationStrategy = document.querySelector('input[name="automation"]:checked').value;
+            const scrollMode = document.querySelector('input[name="scrollMode"]:checked').value;
             
-            if (!searchQuery) {
-                showNotification('Please enter a search query', 'error');
+            if (scrollMode === 'search' && !searchQuery) {
+                showNotification('Please enter a search query for search mode', 'error');
                 return;
             }
             
             try {
-                addStatusMessage(`Starting bot with ${automationStrategy} automation...`);
+                addStatusMessage(`Starting bot with ${automationStrategy} automation in ${scrollMode} mode...`);
                 const result = await api('start', 'POST', { 
-                    searchQuery,
-                    automationStrategy
+                    searchQuery: scrollMode === 'search' ? searchQuery : '',
+                    automationStrategy,
+                    scrollMode
                 });
                 
-                showNotification(`Bot started with ${automationStrategy.toUpperCase()} automation!`, 'success');
-                addStatusMessage(`Bot started with search: "${searchQuery}"`);
+                showNotification(`Bot started in ${scrollMode} mode with ${automationStrategy.toUpperCase()} automation!`, 'success');
+                addStatusMessage(`Bot started in ${scrollMode} mode${scrollMode === 'search' ? ` with search: "${searchQuery}"` : ''}`);
                 sessionStartTime = Date.now();
                 
                 // Start more frequent updates when bot is running
@@ -649,6 +654,21 @@
                 loadComments();
             }
         }
+        
+          document.querySelectorAll('input[name="scrollMode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const searchLabel = document.getElementById('searchLabel');
+                const searchQuery = document.getElementById('searchQuery');
+                
+                if (e.target.value === 'feed') {
+                    searchLabel.style.display = 'none';
+                    searchQuery.style.display = 'none';
+                } else {
+                    searchLabel.style.display = 'block';
+                    searchQuery.style.display = 'block';
+                }
+            });
+        });
         
         // Enter key to start bot
         document.getElementById('searchQuery').addEventListener('keypress', (e) => {

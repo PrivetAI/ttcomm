@@ -16,6 +16,7 @@ class Bot {
         this.sessionStartTime = Date.now();
         this.lastAction = null;
         this.automationStrategy = 'direct'; // default
+        this.scrollMode = 'search'; // 'search' or 'feed'
     }
 
     setAction(action) {
